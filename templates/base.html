@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>{% block title %}집중도 학습 시스템{% endblock %}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}"/>
+  {% block head %}{% endblock %}
+</head>
+<body>
+  <nav class="navbar">
+    <a class="brand" href="{{ url_for('index') }}">📚 집중도 학습 시스템</a>
+    <div class="nav-links">
+      {% if current_user.is_authenticated %}
+        <span class="nav-user">{{ current_user.username }}
+          <span class="badge {{ current_user.role }}">{{ '교수자' if current_user.role == 'professor' else '학생' }}</span>
+        </span>
+        {% if current_user.role == 'professor' %}
+          <a href="{{ url_for('professor') }}">대시보드</a>
+          <a href="{{ url_for('upload') }}">강의 업로드</a>
+        {% else %}
+          <a href="{{ url_for('student') }}">강의 목록</a>
+        {% endif %}
+        <a href="{{ url_for('logout') }}">로그아웃</a>
+      {% else %}
+        <a href="{{ url_for('login') }}">로그인</a>
+        <a href="{{ url_for('register') }}">회원가입</a>
+      {% endif %}
+    </div>
+  </nav>
+
+  <div class="container">
+    {% with messages = get_flashed_messages() %}
+      {% if messages %}
+        {% for msg in messages %}
+          <div class="alert">{{ msg }}</div>
+        {% endfor %}
+      {% endif %}
+    {% endwith %}
+    {% block content %}{% endblock %}
+  </div>
+
+  <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+  {% block scripts %}{% endblock %}
+</body>
+</html>

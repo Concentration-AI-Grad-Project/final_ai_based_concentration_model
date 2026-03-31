@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block title %}강의 목록{% endblock %}
+{% block content %}
+<div class="page-header">
+  <h2>강의 목록</h2>
+</div>
+
+{% if lectures %}
+  <div class="lecture-grid">
+    {% for lec in lectures %}
+    <div class="lecture-card">
+      <div class="lecture-icon">🎬</div>
+      <div class="lecture-info">
+        <h3>{{ lec.title }}</h3>
+        <span class="lecture-date">{{ lec.uploaded_at.strftime('%Y-%m-%d') }}</span>
+      </div>
+      <a href="{{ url_for('watch', lecture_id=lec.id) }}" class="btn-primary">시청하기</a>
+    </div>
+    {% endfor %}
+  </div>
+{% else %}
+  <div class="empty-state">
+    <p>등록된 강의가 없습니다.</p>
+  </div>
+{% endif %}
+{% endblock %}

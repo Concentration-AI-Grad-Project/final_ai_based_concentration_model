@@ -1,0 +1,102 @@
+{% extends "base.html" %}
+{% block title %}교수자 대시보드{% endblock %}
+{% block head %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+{% endblock %}
+{% block content %}
+<div class="page-header">
+  <h2>교수자 대시보드</h2>
+  <a href="{{ url_for('upload') }}" class="btn-primary">+ 강의 업로드</a>
+</div>
+
+{% if lectures %}
+<div class="lecture-list">
+  {% for lec in lectures %}
+  <div class="prof-card" id="card-{{ lec.id }}">
+    <div class="prof-card-header">
+      <div>
+        <h3>{{ lec.title }}</h3>
+        <span class="lecture-date">{{ lec.uploaded_at.strftime('%Y-%m-%d %H:%M') }}</span>
+      </div>
+      <div class="card-actions">
+        <button class="btn-outline" onclick="loadChart({{ lec.id }})">집중도 분석</button>
+        <a class="btn-outline" href="/api/export/lecture/{{ lec.id }}">CSV 다운로드</a>
+        <button class="btn-danger" onclick="deleteLecture({{ lec.id }})">삭제</button>
+      </div>
+    </div>
+
+    <div class="summary-row" id="summary-{{ lec.id }}" style="display:none">
+      <div class="stat-box"><span class="stat-label">평균 집중도</span><span class="stat-val" id="s-mean-{{ lec.id }}">-</span></div>
+      <div class="stat-box"><span class="stat-label">최저</span><span class="stat-val" id="s-min-{{ lec.id }}">-</span></div>
+      <div class="stat-box"><span class="stat-label">최고</span><span class="stat-val" id="s-max-{{ lec.id }}">-</span></div>
+      <div class="stat-box"><span class="stat-label">시청자 수</span><span class="stat-val" id="s-viewers-{{ lec.id }}">-</span></div>
+    </div>
+
+    <div class="chart-wrap" id="chart-wrap-{{ lec.id }}" style="display:none">
+      <canvas id="chart-{{ lec.id }}" height="90"></canvas>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% else %}
+<div class="empty-state"><p>업로드된 강의가 없습니다.</p></div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+async function loadChart(id) {
+  // 요약 통계
+  const sumRes  = await fetch(`/api/concentration/lecture/${id}/summary`);
+  const summary = await sumRes.json();
+  document.getElementById(`summary-${id}`).style.display = 'flex';
+  document.getElementById(`s-mean-${id}`).textContent    = (summary.mean * 100).toFixed(1) + '%';
+  document.getElementById(`s-min-${id}`).textContent     = (summary.min  * 100).toFixed(1) + '%';
+  document.getElementById(`s-max-${id}`).textContent     = (summary.max  * 100).toFixed(1) + '%';
+  document.getElementById(`s-viewers-${id}`).textContent = summary.viewers + '명';
+
+  // 평균 집중도 시계열
+  const avgRes = await fetch(`/api/concentration/lecture/${id}/average`);
+  const points = await avgRes.json();
+  if (!points.length) return;
+
+  document.getElementById(`chart-wrap-${id}`).style.display = 'block';
+  const ctx = document.getElementById(`chart-${id}`).getContext('2d');
+
+  // 기존 차트 파괴
+  if (window[`_chart_${id}`]) window[`_chart_${id}`].destroy();
+
+  window[`_chart_${id}`] = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: points.map(p => p.timestamp + 's'),
+      datasets: [{
+        label: '평균 집중도',
+        data: points.map(p => (p.avg * 100).toFixed(1)),
+        borderColor: '#4f8ef7',
+        backgroundColor: 'rgba(79,142,247,0.12)',
+        tension: 0.4,
+        fill: true,
+        pointRadius: 2,
+      }]
+    },
+    options: {
+      scales: {
+        y: { min: 0, max: 100, ticks: { callback: v => v + '%' } },
+        x: { ticks: { maxTicksLimit: 15 } }
+      },
+      plugins: { legend: { display: false } },
+      animation: { duration: 400 },
+    }
+  });
+}
+
+async function deleteLecture(id) {
+  if (!confirm('강의를 삭제하시겠습니까?')) return;
+  const res = await fetch(`/delete_lecture/${id}`, { method: 'DELETE' });
+  const data = await res.json();
+  if (data.ok) document.getElementById(`card-${id}`).remove();
+  else alert('삭제 실패: ' + data.error);
+}
+</script>
+{% endblock %}

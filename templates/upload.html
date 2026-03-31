@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% block title %}강의 업로드{% endblock %}
+{% block content %}
+<div class="auth-box">
+  <h2>강의 업로드</h2>
+  <form method="post" enctype="multipart/form-data">
+    <label>강의 제목</label>
+    <input type="text" name="title" placeholder="강의 제목 (미입력 시 파일명 사용)"/>
+    <label>동영상 파일</label>
+    <input type="file" name="file" accept="video/*" required/>
+    <button type="submit" class="btn-primary">업로드</button>
+  </form>
+  <p class="auth-link"><a href="{{ url_for('professor') }}">← 대시보드로 돌아가기</a></p>
+</div>
+{% endblock %}
