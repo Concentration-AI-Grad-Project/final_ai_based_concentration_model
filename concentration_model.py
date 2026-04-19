@@ -19,7 +19,7 @@ import random
 # ---------------------------------------------------------------------------
 BASE_DIR   = os.path.dirname(os.path.abspath(__file__))
 MODEL_PATH = os.path.join(BASE_DIR, "face_landmarker.task")
-SKL_MODEL  = os.path.join(BASE_DIR, "models", "concentration_clf.pkl")
+SKL_MODEL  = os.path.join(BASE_DIR, "models", "random_clf.pkl")
 
 # ---------------------------------------------------------------------------
 # MediaPipe FaceLandmarker 초기화 (IMAGE 모드 — 프레임 단위 호출)
@@ -193,6 +193,7 @@ def analyze_frame(frame: np.ndarray) -> float:
         # predict_proba 는 [P(class=0), P(class=1)] 반환
         score = float(proba[1])
     else:
+        raise FileNotFoundError(f"no file")
         # ── 모델 미학습 시 규칙 기반 fallback ───────────────────────────
         score = _rule_based_fallback(feats)
 

@@ -342,7 +342,7 @@ def handle_frame(data):
 def handle_collect_sample(data):
     """
     실제 데이터 수집 모드: 브라우저에서 label 값을 함께 전송하면
-    dataset/concentration_dataset.csv 에 feature row 를 추가한다.
+    dataset/random_dataset.csv 에 feature row 를 추가한다.
     data: { image: dataURL, label: 0|1 }
     """
     img_data = data.get("image", "")
@@ -360,7 +360,7 @@ def handle_collect_sample(data):
             emit("collect_result", {"ok": False, "reason": "no_face"})
             return
 
-        csv_path = os.path.join(DATASET_DIR, "concentration_dataset.csv")
+        csv_path = os.path.join(DATASET_DIR, "collect_user_1.csv")
         is_new   = not os.path.exists(csv_path)
         with open(csv_path, "a", newline="", encoding="utf-8") as f:
             writer = csv_module.writer(f)
@@ -381,4 +381,4 @@ def handle_collect_sample(data):
 if __name__ == "__main__":
     with app.app_context():
         create_tables()
-    socketio.run(app, debug=True, host="0.0.0.0", port=8000)
+    socketio.run(app, debug=True, host="127.0.0.1", port=8000)

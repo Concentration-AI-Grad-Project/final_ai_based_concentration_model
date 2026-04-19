@@ -33,9 +33,9 @@
       <div class="score-label">현재 집중도</div>
       <div class="score-ring">
         <svg viewBox="0 0 120 120" width="120" height="120">
-          <circle cx="60" cy="60" r="50" fill="none" stroke="#e5e7eb" stroke-width="10"/>
+          <circle cx="60" cy="60" r="50" fill="none" stroke="#dcedc8" stroke-width="10"/>
           <circle id="ring" cx="60" cy="60" r="50" fill="none"
-                  stroke="#4f8ef7" stroke-width="10"
+                  stroke="#8bc34a" stroke-width="10"
                   stroke-dasharray="314" stroke-dashoffset="314"
                   stroke-linecap="round"
                   transform="rotate(-90 60 60)"/>
@@ -83,8 +83,8 @@ const rtChart = new Chart(rtCtx, {
     datasets: [{
       label: '집중도',
       data: [],
-      borderColor: '#4f8ef7',
-      backgroundColor: 'rgba(79,142,247,0.1)',
+      borderColor: '#8bc34a',
+      backgroundColor: 'rgba(139,195,74,0.15)',
       tension: 0.4,
       fill: true,
       pointRadius: 3,
@@ -121,11 +121,11 @@ function updateScoreUI(score) {
   const ring  = document.getElementById('ring');
   const level = document.getElementById('score-level');
   if (score >= 0.7) {
-    ring.style.stroke = '#22c55e'; level.textContent = '집중'; level.className = 'score-level high';
+    ring.style.stroke = '#66bb6a'; level.textContent = '집중'; level.className = 'score-level high';
   } else if (score >= 0.4) {
-    ring.style.stroke = '#f59e0b'; level.textContent = '보통'; level.className = 'score-level mid';
+    ring.style.stroke = '#ffb74d'; level.textContent = '보통'; level.className = 'score-level mid';
   } else {
-    ring.style.stroke = '#ef4444'; level.textContent = '집중 낮음'; level.className = 'score-level low';
+    ring.style.stroke = '#ef5350'; level.textContent = '집중 낮음'; level.className = 'score-level low';
   }
 }
 

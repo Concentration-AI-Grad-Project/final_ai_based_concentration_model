@@ -79,7 +79,7 @@ python train_model.py
 2. 충분한 샘플 수집 후 (권장: 각 클래스 200개 이상):
 
 ```bash
-python train_model.py --csv dataset/concentration_dataset.csv
+python train_model.py --csv dataset/random_dataset.csv
 ```
 
 3. 서버에서 모델 갱신 (재시작 불필요):

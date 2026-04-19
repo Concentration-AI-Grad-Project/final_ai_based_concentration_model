@@ -1,9 +1,9 @@
 """
 train_model.py
 --------------
-1) dataset/concentration_dataset.csv 가 없으면 합성 데이터로 생성
+1) dataset/random_dataset.csv 가 없으면 합성 데이터로 생성
 2) RandomForestClassifier 학습 + 평가 지표 출력
-3) models/concentration_clf.pkl 저장
+3) models/random_clf.pkl 저장
 
 실행:
     python train_model.py                       # 합성 데이터로 학습
@@ -27,8 +27,8 @@ from sklearn.metrics import (
 BASE_DIR    = os.path.dirname(os.path.abspath(__file__))
 DATASET_DIR = os.path.join(BASE_DIR, "dataset")
 MODEL_DIR   = os.path.join(BASE_DIR, "models")
-CSV_PATH    = os.path.join(DATASET_DIR, "concentration_dataset.csv")
-PKL_PATH    = os.path.join(MODEL_DIR,   "concentration_clf.pkl")
+CSV_PATH    = os.path.join(DATASET_DIR, "collect_user_1.csv")
+PKL_PATH    = os.path.join(MODEL_DIR,   "user_1_clf.pkl")
 
 FEATURE_COLS = [
     "left_ear", "right_ear",
@@ -38,81 +38,38 @@ FEATURE_COLS = [
 ] #총 11개 특징
 
 # ---------------------------------------------------------------------------
-# 합성 데이터 생성 (실제 데이터 수집 전 임시 페이크 데이터)
+# 합성 데이터 생성 (실제 데이터 수집 전 임시 random 페이크 데이터)
 # ---------------------------------------------------------------------------
 def generate_synthetic_dataset(n_samples: int = 2000, seed: int = 42) -> pd.DataFrame:
     """
-    집중(label=1)과 비집중(label=0) 샘플을 각각 절반씩 생성.
+    완전 랜덤 합성 데이터 생성 (Cold Start 시뮬레이션)
 
-    집중 상태:
-      - Eye Aspect Ratio 정상 범위 (눈 뜸): 0.25~0.35
-      - 동공 중앙 근처pupil: dist 0~0.15
-      - 고개 정면: pitch/yaw ±10°
-    비집중 상태:
-      - Eye Aspect Ratio 낮거나(졸음) 또는 정상
-      - 동공 치우침 pupil: dist 0.20~0.45
-      - 고개 기울어짐: pitch/yaw ±25°
+    특징값과 라벨 간 아무런 상관관계 없음
+    → 초기 모델 성능: ~50% (완전 랜덤 수준)
+    → 사용자 피드백 수집 후 점진적 개선을 증명하기 위한 baseline
     """
     rng = np.random.default_rng(seed)
     rows = []
 
-    half = n_samples // 2
-
-    # ── 집중 (페이크)샘플 ──────────────────────────────────────────────────────────
-    for _ in range(half):
-        eye_aspect_ratio = rng.uniform(0.24, 0.36) 
-        pupil_dist = rng.uniform(0.00, 0.18)
-        pupil_dx = rng.uniform(-0.10, 0.10)
-        pupil_dy = rng.uniform(-0.10, 0.10)
-        pitch = rng.uniform(-12, 12)
-        yaw = rng.uniform(-12, 12)
-        roll = rng.uniform(-8, 8)
+    for _ in range(n_samples):
         rows.append([
-            eye_aspect_ratio + rng.normal(0, 0.005),   # left_ear
-            eye_aspect_ratio + rng.normal(0, 0.005),   # right_ear
-            pupil_dist, pupil_dx, pupil_dy,           # left pupil
-            pupil_dist + rng.uniform(-0.03, 0.03),
-            pupil_dx   + rng.uniform(-0.03, 0.03),
-            pupil_dy   + rng.uniform(-0.03, 0.03),
-            pitch, yaw, roll, 1,
-        ])
-
-    # ── 비집중 샘플 ────────────────────────────────────────────────────────
-    for _ in range(n_samples - half):
-        # 비집중 유형을 3가지로 분류
-        t = rng.integers(0, 3)
-        if t == 0:   # 졸음 (Eye Aspect Ratio 낮음)
-            eye_aspect_ratio = rng.uniform(0.08, 0.20)
-            pupil_dist = rng.uniform(0.00, 0.25)
-            pitch = rng.uniform(-15, 30)    # 고개 숙임
-            yaw = rng.uniform(-10, 10)
-        elif t == 1: # 딴짓 (동공 치우침 + 고개 회전)
-            eye_aspect_ratio = rng.uniform(0.22, 0.34)
-            pupil_dist = rng.uniform(0.25, 0.50)
-            pitch = rng.uniform(-20, 20)
-            yaw = rng.uniform(20,  45)
-        else:        # 고개 아래 (필기 등)
-            eye_aspect_ratio = rng.uniform(0.22, 0.34)
-            pupil_dist = rng.uniform(0.10, 0.35)
-            pitch = rng.uniform(20,  40)
-            yaw = rng.uniform(-15, 15)
-
-        pupil_dx = rng.uniform(-pupil_dist, pupil_dist)
-        pupil_dy = rng.uniform(-pupil_dist, pupil_dist)
-        roll = rng.uniform(-15, 15)
-        rows.append([
-            eye_aspect_ratio + rng.normal(0, 0.005),
-            eye_aspect_ratio + rng.normal(0, 0.005),
-            pupil_dist, pupil_dx, pupil_dy,
-            pupil_dist + rng.uniform(-0.03, 0.03),
-            pupil_dx   + rng.uniform(-0.03, 0.03),
-            pupil_dy   + rng.uniform(-0.03, 0.03),
-            pitch, yaw, roll, 0,
+            rng.uniform(0.05, 0.40),  # left_ear (완전 랜덤)
+            rng.uniform(0.05, 0.40),  # right_ear
+            rng.uniform(0.0, 0.5),  # l_pupil_dist
+            rng.uniform(-0.3, 0.3),  # l_pupil_dx
+            rng.uniform(-0.3, 0.3),  # l_pupil_dy
+            rng.uniform(0.0, 0.5),  # r_pupil_dist
+            rng.uniform(-0.3, 0.3),  # r_pupil_dx
+            rng.uniform(-0.3, 0.3),  # r_pupil_dy
+            rng.uniform(-45, 45),  # pitch
+            rng.uniform(-45, 45),  # yaw
+            rng.uniform(-30, 30),  # roll
+            rng.integers(0, 2)  # label (0 or 1 완전 랜덤!)
         ])
 
     cols = FEATURE_COLS + ["label"]
-    df   = pd.DataFrame(rows, columns=cols)
-    df   = df.sample(frac=1, random_state=seed).reset_index(drop=True)
+    df = pd.DataFrame(rows, columns=cols)
+    df = df.sample(frac=1, random_state=seed).reset_index(drop=True)
     return df
 
 # ---------------------------------------------------------------------------
@@ -154,10 +111,9 @@ def train(csv_path: str = CSV_PATH):
         print(f"[train] CSV 로드: {csv_path}")
         df = pd.read_csv(csv_path)
     else:
-        raise FileNotFoundError(f"CSV 파일이 없습니다: {csv_path}")
+        #raise FileNotFoundError(f"CSV 파일이 없습니다: {csv_path}")
         print("[train] CSV 없음 → 합성 데이터 생성 (n=2000)")
-        #df = generate_synthetic_dataset()
-        df = generate_random_dataset(n_samples=2000)
+        df = generate_synthetic_dataset()
         df.to_csv(csv_path, index=False)
         print(f"[train] 합성 데이터 저장: {csv_path}")
 

@@ -1,0 +1,43 @@
+[train] CSV 로드: C:\Users\kyuje\concentration_model\dataset\collect_user_1.csv
+[train] 샘플 수: 206  |  집중: 106  비집중: 100
+[train] 학습: 164  테스트: 42
+
+[train] 5-Fold CV F1(성능): [0.8824 0.8824 1.     1.     0.8889]  평균: 0.9307
+
+=======================================================
+  테스트셋 평가 결과
+=======================================================
+  Accuracy : 0.9524
+  Precision: 0.9545
+  Recall   : 0.9545
+  F1-score : 0.9545
+
+  Classification Report:
+              precision    recall  f1-score   support
+
+      비집중(0)       0.95      0.95      0.95        20
+       집중(1)       0.95      0.95      0.95        22
+
+    accuracy                           0.95        42
+   macro avg       0.95      0.95      0.95        42
+weighted avg       0.95      0.95      0.95        42
+
+  Confusion Matrix:
+[[19  1]
+ [ 1 21]]
+=======================================================
+
+  Feature Importance:
+  r_pupil_dy         0.2913  ███████████
+  l_pupil_dy         0.2008  ████████
+  right_ear          0.1360  █████
+  left_ear           0.1335  █████
+  r_pupil_dx         0.0713  ██
+  l_pupil_dx         0.0649  ██
+  l_pupil_dist       0.0513  ██
+  r_pupil_dist       0.0509  ██
+  pitch              0.0000
+  yaw                0.0000
+  roll               0.0000
+
+[train] 모델 저장 완료: C:\Users\kyuje\concentration_model\models\user_1_clf.pkl
