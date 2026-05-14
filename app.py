@@ -9,6 +9,7 @@ import io
 import base64
 import csv as csv_module
 from datetime import datetime
+from collections import deque
 
 import numpy as np
 from PIL import Image
@@ -96,8 +97,8 @@ def create_tables():
 def login():
     if request.method == "POST":
         user = User.query.filter_by(
-            username=request.form["username"],
-            password=request.form["password"],
+            username=request.form["username"].strip(),
+            password=request.form["password"].strip(),
         ).first()
         if user:
             login_user(user)
@@ -109,14 +110,22 @@ def login():
 @app.route("/register", methods=["GET", "POST"])
 def register():
     if request.method == "POST":
-        username = request.form["username"]
+        username = request.form["username"].strip()
+        password = request.form["password"].strip()
+        role = request.form["role"].strip()
+
+        if not username or not password:
+            flash("아이디와 비밀번호는 공백일 수 없습니다.")
+            return render_template("register.html")
+
         if User.query.filter_by(username=username).first():
             flash("이미 존재하는 아이디입니다.")
             return render_template("register.html")
+    
         db.session.add(User(
             username=username,
-            password=request.form["password"],
-            role=request.form["role"],
+            password=password,
+            role=role,
         ))
         db.session.commit()
         flash("회원가입 완료. 로그인해주세요.")
@@ -360,8 +369,10 @@ def handle_collect_sample(data):
             emit("collect_result", {"ok": False, "reason": "no_face"})
             return
 
+
         csv_path = os.path.join(DATASET_DIR, "collect_user_1.csv")
         is_new   = not os.path.exists(csv_path)
+        
         with open(csv_path, "a", newline="", encoding="utf-8") as f:
             writer = csv_module.writer(f)
             if is_new:
