@@ -19,7 +19,7 @@ import random
 # ---------------------------------------------------------------------------
 BASE_DIR   = os.path.dirname(os.path.abspath(__file__))
 MODEL_PATH = os.path.join(BASE_DIR, "face_landmarker.task")
-SKL_MODEL  = os.path.join(BASE_DIR, "models", "random_clf.pkl")
+SKL_MODEL  = os.path.join(BASE_DIR, "models", "concentration_clf.pkl")
 
 # ---------------------------------------------------------------------------
 # MediaPipe FaceLandmarker 초기화 (IMAGE 모드 — 프레임 단위 호출)
@@ -39,6 +39,18 @@ R_IRIS = 473
 # 눈 윤곽 전체 (동공 거리 계산용)
 L_EYE_FULL = [33, 133, 160, 159, 158, 157, 173, 144, 145, 153, 154, 155]
 R_EYE_FULL = [362, 263, 387, 386, 385, 384, 398, 373, 374, 380, 381, 382]
+
+# 얼굴 기준점 (3D 모델 포즈 추정용)
+FACE_3D_POINTS = np.array([
+    (0.0, 0.0, 0.0),          # 코끝 (30)
+    (0.0, -63.6, -12.5),      # 턱 (152)
+    (-43.3, 32.7, -26.0),     # 왼쪽 눈 끝 (33)
+    (43.3, 32.7, -26.0),      # 오른쪽 눈 끝 (263)
+    (-28.9, -28.9, -24.1),    # 왼쪽 입 끝 (61)
+    (28.9, -28.9, -24.1)      # 오른쪽 입 끝 (291)
+], dtype=np.float64)
+
+FACE_2D_INDICES = [30, 152, 33, 263, 61, 291]  # 위 3D 점에 대응하는 랜드마크 인덱스
 
 # ---------------------------------------------------------------------------
 # Feature 추출 함수
@@ -88,6 +100,80 @@ def _rotation_to_euler(R: np.ndarray):
     return pitch, yaw, roll
 
 
+def _estimate_head_pose(face_landmarks, img_h, img_w):
+    """
+    MediaPipe 얼굴 랜드마크로 고개 각도 추정 (pitch, yaw, roll)
+
+    Returns:
+        (pitch, yaw, roll): 각도 (degree)
+    """
+    try:
+        # 2D 이미지 좌표 추출
+        face_2d = []
+        for idx in FACE_2D_INDICES:
+            lm = face_landmarks.landmark[idx]
+            face_2d.append([lm.x * img_w, lm.y * img_h])
+
+        face_2d = np.array(face_2d, dtype=np.float64)
+
+        # 카메라 매트릭스 (단순화된 내부 파라미터)
+        focal_length = img_w
+        center = (img_w / 2, img_h / 2)
+        camera_matrix = np.array([
+            [focal_length, 0, center[0]],
+            [0, focal_length, center[1]],
+            [0, 0, 1]
+        ], dtype=np.float64)
+
+        # 왜곡 계수 (없음으로 가정)
+        dist_coeffs = np.zeros((4, 1))
+
+        # PnP 문제 풀이
+        success, rotation_vec, translation_vec = cv2.solvePnP(
+            FACE_3D_POINTS,
+            face_2d,
+            camera_matrix,
+            dist_coeffs,
+            flags=cv2.SOLVEPNP_ITERATIVE
+        )
+
+        if not success:
+            return 0.0, 0.0, 0.0
+
+        # 회전 벡터 → 회전 행렬
+        rotation_mat, _ = cv2.Rodrigues(rotation_vec)
+
+        # 회전 행렬 → 오일러 각도
+        sy = math.sqrt(rotation_mat[0, 0]**2 + rotation_mat[1, 0]**2)
+        singular = sy < 1e-6
+
+        if not singular:
+            pitch = math.atan2(rotation_mat[2, 1], rotation_mat[2, 2])
+            yaw = math.atan2(-rotation_mat[2, 0], sy)
+            roll = math.atan2(rotation_mat[1, 0], rotation_mat[0, 0])
+        else:
+            pitch = math.atan2(-rotation_mat[1, 2], rotation_mat[1, 1])
+            yaw = math.atan2(-rotation_mat[2, 0], sy)
+            roll = 0
+
+        # 라디안 → 도(degree)
+        pitch = math.degrees(pitch)
+        yaw = math.degrees(yaw)
+        roll = math.degrees(roll)
+
+        # 범위 제한 (-90 ~ 90)
+        pitch = max(-90, min(90, pitch))
+        yaw = max(-90, min(90, yaw))
+        roll = max(-90, min(90, roll))
+
+        return pitch, yaw, roll
+
+    except Exception as e:
+        # 에러 발생 시 기본값 반환
+        print(f"[HEAD POSE] 에러: {e}")
+        return 0.0, 0.0, 0.0
+
+
 def extract_features(frame: np.ndarray):
     """
     RGB numpy array (H, W, 3) → feature dict 또는 None (얼굴 미감지).
@@ -118,7 +204,7 @@ def extract_features(frame: np.ndarray):
     r_dist, r_dx, r_dy = _pupil_offset(pts[R_EYE_FULL], pts[R_IRIS])
 
     # ── 고개 각도 ─────────────────────────────────────────────────────────
-    pitch, yaw, roll = 0.0, 0.0, 0.0
+    pitch, yaw, roll = _estimate_head_pose(face, h, w)
 
     return dict(
         left_ear=l_ear,   right_ear=r_ear,
@@ -193,7 +279,6 @@ def analyze_frame(frame: np.ndarray) -> float:
         # predict_proba 는 [P(class=0), P(class=1)] 반환
         score = float(proba[1])
     else:
-        raise FileNotFoundError(f"no file")
         # ── 모델 미학습 시 규칙 기반 fallback ───────────────────────────
         score = _rule_based_fallback(feats)
 
