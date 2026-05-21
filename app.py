@@ -20,7 +20,7 @@ from flask_socketio import SocketIO, emit
 from flask_login import (LoginManager, UserMixin,
                          login_user, login_required, logout_user, current_user)
 
-from concentration_model import analyze_frame, extract_features, reload_model, FEATURE_COLS, get_model_status
+from concentration_model import analyze_frame, extract_features, reload_model
 
 
 

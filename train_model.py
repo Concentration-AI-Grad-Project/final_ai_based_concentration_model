@@ -302,6 +302,11 @@ def train(csv_path: str = None, use_multi_user: bool = True):
     print(f"\n[train] 모델 저장 완료: {PKL_PATH}")
     print("="*60 + "\n")
 
+    # ── 시각화 ─────────────────────────────────────────────────────────
+    from visualize_model_performance import visualize_performance
+    print("\n[시각화] 성능 그래프 생성 중...")
+    visualize_performance(pipeline, X_test, y_test, y_pred, save_dir='results')
+
     return pipeline
 
 

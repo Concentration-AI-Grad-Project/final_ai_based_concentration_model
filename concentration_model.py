@@ -226,27 +226,9 @@ FEATURE_COLS = [
 # ---------------------------------------------------------------------------
 
 def _load_model():
-    print(f"\n{'='*60}")
-    print(f"[LOAD] 모델 파일 경로: {SKL_MODEL}")
-    print(f"[LOAD] 파일 존재: {os.path.exists(SKL_MODEL)}")
-
     if os.path.exists(SKL_MODEL):
-        try:
-            print(f"[LOAD] 모델 로드 시도...")
-            with open(SKL_MODEL, "rb") as f:
-                model = pickle.load(f)
-            print(f"[LOAD] ✅ 모델 로드 성공!")
-            print(f"[LOAD] 타입: {type(model)}")
-            print(f"[LOAD] 트리 개수: {model.named_steps['clf'].n_estimators}")
-            print(f"{'='*60}\n")
-            return model
-        except Exception as e:
-            print(f"[LOAD] ❌ 로드 중 에러: {e}")
-            print(f"{'='*60}\n")
-            return None
-    else:
-        print(f"[LOAD] ❌ 파일 없음!")
-        print(f"{'='*60}\n")
+        with open(SKL_MODEL, "rb") as f:
+            return pickle.load(f)
     return None
 
 
@@ -257,7 +239,6 @@ _prev_features = None         # 프레임 간 시선 변화 계산용 (옵션)
 def reload_model():
     """train_model.py 학습 완료 후 서버 재시작 없이 모델 갱신."""
     global _clf
-    print(f"\n[RELOAD] 모델 재로드 요청")
     _clf = _load_model()
 
 
@@ -285,12 +266,9 @@ def analyze_frame(frame: np.ndarray) -> float:
     frame : RGB numpy array (H, W, 3)
     return: 집중도 점수 0.0 ~ 1.0
     """
-    print(f"[ANALYZE] 시작 - _clf is None: {_clf is None}")
-
     feats = extract_features(frame)
 
     if feats is None:
-        print(f"[ANALYZE] ❌ 얼굴 미감지")
         return _smooth(0.0)          # 얼굴 미감지 → 0점
 
     x = np.array([[feats[c] for c in FEATURE_COLS]])
@@ -300,15 +278,11 @@ def analyze_frame(frame: np.ndarray) -> float:
         proba = _clf.predict_proba(x)[0]
         # predict_proba 는 [P(class=0), P(class=1)] 반환
         score = float(proba[1])
-        print(f"[ANALYZE] ✅ ML 예측: {score:.4f} (확률: [{proba[0]:.4f}, {proba[1]:.4f}])")
     else:
         # ── 모델 미학습 시 규칙 기반 fallback ───────────────────────────
         score = _rule_based_fallback(feats)
-        print(f"[ANALYZE] ⚠️  Fallback (랜덤): {score:.4f}")
 
-    result = _smooth(round(score, 4))
-    print(f"[ANALYZE] 최종 점수 (스무딩 후): {result:.4f}\n")
-    return result
+    return _smooth(round(score, 4))
 
 
 def _rule_based_fallback(feats: dict) -> float:
@@ -329,5 +303,4 @@ def _rule_based_fallback(feats: dict) -> float:
     return 0.3 * ear_score + 0.4 * pupil_score + 0.3 * head_score
     """
     # 완전 랜덤
-    print(f"[FALLBACK] ⚠️⚠️⚠️ 랜덤 값 사용 중! 모델이 로드되지 않았습니다!")
     return round(random.random(), 4)
