@@ -73,20 +73,6 @@
   </div>
 </div>
 
-<!-- 데이터 수집 -->
-<div class="collect-panel">
-  <div class="collect-head">
-    <h3>학습 데이터 수집</h3>
-    <span class="tag">// for model training</span>
-  </div>
-  <p class="collect-desc">현재 상태를 분류하여 머신러닝 데이터셋에 기록합니다.</p>
-  <div class="collect-buttons">
-    <button class="btn-collect focused"   onclick="collectSample(1)">✓ 집중</button>
-    <button class="btn-collect unfocused" onclick="collectSample(0)">✗ 비집중</button>
-  </div>
-  <div id="collect-msg" class="collect-msg">// 대기 중</div>
-</div>
-
 {% endblock %}
 
 {% block scripts %}
