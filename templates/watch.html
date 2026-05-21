@@ -1,81 +1,236 @@
 {% extends "base.html" %}
-{% block title %}{{ lecture.title }} 시청{% endblock %}
+{% block title %}{{ lecture.title }} — Focus{% endblock %}
+{% block body_class %}watch-page{% endblock %}
 {% block head %}
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/socket.io@4.6.1/client-dist/socket.io.min.js"></script>
 {% endblock %}
 
 {% block content %}
-<div class="watch-layout">
 
-  <!-- 좌측: 영상 + 웹캠 -->
-  <div class="watch-left">
-    <h2 class="lecture-title">{{ lecture.title }}</h2>
-
-    <video id="lecture-video" controls class="lecture-video"
-           src="{{ url_for('uploaded_file', filename=lecture.filename) }}">
-    </video>
-
-    <div class="webcam-section">
-      <div class="webcam-header">
-        <span>웹캠</span>
-        <span id="cam-status" class="status-dot off">●</span>
-        <button id="btn-cam" class="btn-outline btn-sm" onclick="toggleCam()">카메라 켜기</button>
-      </div>
-      <video id="webcam" autoplay muted playsinline class="webcam-preview"></video>
-      <canvas id="snap" style="display:none"></canvas>
+<!-- Floating PiP webcam -->
+<aside id="pip" class="pip" aria-label="웹캠 미니뷰">
+  <div class="pip__head">
+    <span class="left">
+      <span id="cam-status" class="status-dot"></span>
+      <span>YOU · LIVE</span>
+    </span>
+    <button class="pip__btn" id="btn-cam" onclick="toggleCam()">OFF</button>
+  </div>
+  <div class="pip__cam">
+    <video id="webcam" autoplay muted playsinline></video>
+    <canvas id="snap" style="display:none"></canvas>
+    <div class="pip__overlay">
+      <span class="pip__score">집중 <span class="v" id="pip-score">— %</span></span>
     </div>
   </div>
+</aside>
 
-  <!-- 우측: 집중도 패널 -->
-  <div class="watch-right">
-    <div class="score-panel">
-      <div class="score-label">현재 집중도</div>
-      <div class="score-ring">
-        <svg viewBox="0 0 120 120" width="120" height="120">
-          <circle cx="60" cy="60" r="50" fill="none" stroke="#dcedc8" stroke-width="10"/>
-          <circle id="ring" cx="60" cy="60" r="50" fill="none"
-                  stroke="#8bc34a" stroke-width="10"
-                  stroke-dasharray="314" stroke-dashoffset="314"
-                  stroke-linecap="round"
-                  transform="rotate(-90 60 60)"/>
-        </svg>
-        <div class="score-num" id="score-num">—</div>
-      </div>
-      <div id="score-level" class="score-level">-</div>
-    </div>
-
-    <div class="chart-panel">
-      <div class="chart-title">집중도 추이</div>
-      <canvas id="realtime-chart" height="160"></canvas>
-    </div>
-
-    <!-- 데이터 수집 모드 (ML 학습용) -->
-    <div class="collect-panel">
-      <div class="collect-title">📊 학습 데이터 수집</div>
-      <p class="collect-desc">버튼을 눌러 현재 상태를 레이블링합니다.</p>
-      <div class="collect-buttons">
-        <button class="btn-collect focused"    onclick="collectSample(1)">✅ 집중 중</button>
-        <button class="btn-collect unfocused"  onclick="collectSample(0)">❌ 비집중</button>
-      </div>
-      <div id="collect-msg" class="collect-msg"></div>
-    </div>
+<div class="watch-head">
+  <div>
+    <div class="eyebrow">// Now Playing</div>
+    <h1>{{ lecture.title }}</h1>
   </div>
 </div>
+
+<!-- 메인 영상 + 큰 CTA 오버레이 -->
+<div class="watch-stage" id="watchStage">
+  <video id="lecture-video" controls controlslist="nofullscreen" class="lecture-video"
+         src="{{ url_for('uploaded_file', filename=lecture.filename) }}">
+  </video>
+
+  <!-- 카메라 꺼져 있을 때 큰 CTA -->
+  <div class="cam-overlay" id="camOverlay">
+    <div class="cam-overlay__inner">
+      <div class="cam-overlay__title">강의를 시작하려면 <em>카메라</em>를 켜주세요</div>
+      <p class="cam-overlay__sub">웹캠을 활성화하면 실시간으로 집중도를 측정하고,<br/>집중력이 떨어질 때 알려드립니다.</p>
+      <button class="cam-overlay__btn" id="ctaCam" onclick="toggleCam()">
+        <span class="ico">▶</span>
+        <span>카메라 켜고 측정 시작</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- 커스텀 전체화면 버튼 -->
+  <button class="stage-btn" id="btnFullscreen" onclick="toggleFullscreen()">⛶ 전체화면</button>
+</div>
+
+<!-- HUD -->
+<div class="watch-grid">
+  <div class="chart-panel">
+    <div class="chart-title">
+      <span>집중도 추이</span>
+      <span id="elapsed">00:00</span>
+    </div>
+    <canvas id="realtime-chart" height="160"></canvas>
+  </div>
+
+  <div class="score-readout">
+    <span class="label">현재 집중도</span>
+    <div class="big"><span id="score-num">—</span><sup>%</sup></div>
+    <div class="score-bar"><div id="score-fill" class="score-bar__fill"></div></div>
+    <span id="score-level" class="score-state mid">대기 중</span>
+  </div>
+</div>
+
+<!-- 데이터 수집 -->
+<div class="collect-panel">
+  <div class="collect-head">
+    <h3>학습 데이터 수집</h3>
+    <span class="tag">// for model training</span>
+  </div>
+  <p class="collect-desc">현재 상태를 분류하여 머신러닝 데이터셋에 기록합니다.</p>
+  <div class="collect-buttons">
+    <button class="btn-collect focused"   onclick="collectSample(1)">✓ 집중</button>
+    <button class="btn-collect unfocused" onclick="collectSample(0)">✗ 비집중</button>
+  </div>
+  <div id="collect-msg" class="collect-msg">// 대기 중</div>
+</div>
+
 {% endblock %}
 
 {% block scripts %}
 <script>
+/* ───────────────────────────────────────────────────────────
+   Focus — Watch page controller
+   ─────────────────────────────────────────────────────────── */
 const VIEW_ID   = {{ view_id }};
 const socket    = io();
 let   streaming = false;
 let   camStream = null;
 let   startTime = null;
 let   frameInt  = null;
-const INTERVAL  = 3000;   // ms — 프레임 전송 간격
+const INTERVAL  = 2000;
 
-// ── 실시간 차트 초기화 ──────────────────────────────────────────────────
-const rtCtx   = document.getElementById('realtime-chart').getContext('2d');
+document.body.classList.add('has-pip');
+
+/* ── 사운드 알림 ─────────────────────────────────────────── */
+let audioCtx = null;
+function ensureAudio() {
+  if (!audioCtx) {
+    try { audioCtx = new (window.AudioContext || window.webkitAudioContext)(); }
+    catch(e) { audioCtx = null; }
+  }
+  if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
+}
+function playAlertSound() {
+  ensureAudio();
+  if (!audioCtx) return;
+  const now = audioCtx.currentTime;
+  // 3-beep pattern (880Hz)
+  for (let i = 0; i < 3; i++) {
+    const osc  = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.connect(gain); gain.connect(audioCtx.destination);
+    osc.type = 'sine';
+    osc.frequency.value = 880;
+    gain.gain.setValueAtTime(0.0001, now + i * 0.22);
+    gain.gain.exponentialRampToValueAtTime(0.4, now + i * 0.22 + 0.02);
+    gain.gain.exponentialRampToValueAtTime(0.0001, now + i * 0.22 + 0.18);
+    osc.start(now + i * 0.22);
+    osc.stop (now + i * 0.22 + 0.2);
+  }
+}
+
+/* ── 알림 시스템 ─────────────────────────────────────────── */
+function showToast(title, message, type = 'warn', duration = 4500) {
+  const container = document.getElementById('toast-container');
+  const t = document.createElement('div');
+  t.className = `toast ${type}`;
+  t.innerHTML = `
+    <div class="toast__ico">!</div>
+    <div class="toast__body">
+      <div class="toast__title">${title}</div>
+      <div class="toast__msg">${message}</div>
+    </div>
+    <button class="toast__close" aria-label="닫기">×</button>
+  `;
+  container.appendChild(t);
+  requestAnimationFrame(() => t.classList.add('show'));
+
+  const dismiss = () => {
+    t.classList.remove('show');
+    setTimeout(() => t.remove(), 400);
+  };
+  t.querySelector('.toast__close').addEventListener('click', dismiss);
+  setTimeout(dismiss, duration);
+
+  if (document.hidden && 'Notification' in window && Notification.permission === 'granted') {
+    new Notification(title, { body: message });
+  }
+}
+
+/* ── 크리티컬 알림 (≤ 35점) ──────────────────────────────── */
+function showCritical(message, duration = 8000) {
+  const container = document.getElementById('toast-container');
+  const t = document.createElement('div');
+  t.className = 'toast toast--critical';
+  t.innerHTML = `
+    <div class="toast__ico">!</div>
+    <div class="toast__body">
+      <div class="toast__title">⚠ 집중력 경고</div>
+      <div class="toast__msg">${message}</div>
+    </div>
+    <button class="toast__close" aria-label="닫기">×</button>
+  `;
+  container.appendChild(t);
+  requestAnimationFrame(() => t.classList.add('show'));
+
+  const dismiss = () => {
+    t.classList.remove('show');
+    setTimeout(() => t.remove(), 400);
+  };
+  t.querySelector('.toast__close').addEventListener('click', dismiss);
+  setTimeout(dismiss, duration);
+
+  // 사운드
+  playAlertSound();
+
+  // 브라우저 알림 (탭 전환 시에도 알림)
+  if ('Notification' in window && Notification.permission === 'granted') {
+    new Notification('⚠ 집중력이 떨어졌습니다', {
+      body: message,
+      requireInteraction: true
+    });
+  }
+}
+
+if ('Notification' in window && Notification.permission === 'default') {
+  Notification.requestPermission();
+}
+
+/* ── Fullscreen ──────────────────────────────────────────── */
+function toggleFullscreen() {
+  const stage = document.getElementById('watchStage');
+  const isFs  = document.fullscreenElement || document.webkitFullscreenElement;
+  if (!isFs) {
+    (stage.requestFullscreen || stage.webkitRequestFullscreen).call(stage);
+  } else {
+    (document.exitFullscreen || document.webkitExitFullscreen).call(document);
+  }
+}
+
+function handleFullscreenChange() {
+  const fsEl = document.fullscreenElement || document.webkitFullscreenElement;
+  const toastC = document.getElementById('toast-container');
+  const pip    = document.getElementById('pip');
+  const stage  = document.getElementById('watchStage');
+
+  if (fsEl === stage) {
+    // 전체화면 진입 → 토스트와 PiP를 스테이지 안으로 이동
+    stage.appendChild(toastC);
+    stage.appendChild(pip);
+  } else {
+    // 전체화면 종료 → 다시 body로 복귀
+    document.body.appendChild(toastC);
+    document.body.appendChild(pip);
+  }
+}
+document.addEventListener('fullscreenchange',       handleFullscreenChange);
+document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
+
+/* ── 실시간 차트 ─────────────────────────────────────────── */
+const rtCtx = document.getElementById('realtime-chart').getContext('2d');
 const rtChart = new Chart(rtCtx, {
   type: 'line',
   data: {
@@ -83,26 +238,34 @@ const rtChart = new Chart(rtCtx, {
     datasets: [{
       label: '집중도',
       data: [],
-      borderColor: '#8bc34a',
-      backgroundColor: 'rgba(139,195,74,0.15)',
-      tension: 0.4,
-      fill: true,
-      pointRadius: 3,
+      borderColor: '#0A0A0A',
+      backgroundColor: (ctx) => {
+        const c = ctx.chart.ctx;
+        const g = c.createLinearGradient(0, 0, 0, 200);
+        g.addColorStop(0, 'rgba(255, 90, 31, 0.35)');
+        g.addColorStop(1, 'rgba(255, 90, 31, 0.02)');
+        return g;
+      },
+      tension: 0.35, fill: true,
+      pointRadius: 0, pointHoverRadius: 5,
+      borderWidth: 1.8,
     }]
   },
   options: {
-    animation: { duration: 300 },
+    animation: { duration: 250 },
     scales: {
-      y: { min: 0, max: 100, ticks: { callback: v => v + '%' } },
-      x: { ticks: { maxTicksLimit: 10 } }
+      y: { min: 0, max: 100,
+           ticks: { callback: v => v + '%', color: '#6B6B6B' },
+           grid: { color: '#F0F0F0' } },
+      x: { ticks: { maxTicksLimit: 8, color: '#6B6B6B' },
+           grid: { display: false } }
     },
     plugins: { legend: { display: false } }
   }
 });
 
 function pushChart(ts, score) {
-  const label = ts + 's';
-  rtChart.data.labels.push(label);
+  rtChart.data.labels.push(ts + 's');
   rtChart.data.datasets[0].data.push((score * 100).toFixed(1));
   if (rtChart.data.labels.length > 60) {
     rtChart.data.labels.shift();
@@ -111,49 +274,57 @@ function pushChart(ts, score) {
   rtChart.update('none');
 }
 
-// ── 점수 UI 갱신 ────────────────────────────────────────────────────────
+/* ── 점수 UI 갱신 ───────────────────────────────────────── */
 function updateScoreUI(score) {
-  const pct    = Math.round(score * 100);
-  const offset = 314 - (314 * score);
-  document.getElementById('ring').style.strokeDashoffset = offset;
-  document.getElementById('score-num').textContent = pct + '%';
+  const pct = Math.round(score * 100);
+  document.getElementById('score-num').textContent = pct;
+  document.getElementById('pip-score').textContent = pct + ' %';
 
-  const ring  = document.getElementById('ring');
+  const fill = document.getElementById('score-fill');
+  fill.style.transform = `scaleX(${score})`;
+
   const level = document.getElementById('score-level');
   if (score >= 0.7) {
-    ring.style.stroke = '#66bb6a'; level.textContent = '집중'; level.className = 'score-level high';
+    fill.style.background = '#1F9D55';
+    level.textContent = '집중'; level.className = 'score-state high';
   } else if (score >= 0.4) {
-    ring.style.stroke = '#ffb74d'; level.textContent = '보통'; level.className = 'score-level mid';
+    fill.style.background = '#E89A1F';
+    level.textContent = '보통'; level.className = 'score-state mid';
   } else {
-    ring.style.stroke = '#ef5350'; level.textContent = '집중 낮음'; level.className = 'score-level low';
+    fill.style.background = '#E1331F';
+    level.textContent = '집중 낮음'; level.className = 'score-state low';
   }
 }
 
-// ── 카메라 토글 ──────────────────────────────────────────────────────────
+/* ── 카메라 토글 ─────────────────────────────────────────── */
 async function toggleCam() {
   if (!streaming) {
     try {
-      camStream = await navigator.mediaDevices.getUserMedia({ video: true });
+      ensureAudio(); // 사용자 제스처로 오디오 컨텍스트 활성화
+      camStream = await navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 480 } });
       document.getElementById('webcam').srcObject = camStream;
       document.getElementById('cam-status').className = 'status-dot on';
-      document.getElementById('btn-cam').textContent  = '카메라 끄기';
+      document.getElementById('btn-cam').textContent  = 'ON';
+      document.getElementById('camOverlay').classList.add('hidden');
       startTime = Date.now();
       streaming = true;
       frameInt  = setInterval(sendFrame, INTERVAL);
-    } catch(e) {
-      alert('카메라 접근 실패: ' + e.message);
+      showToast('카메라 활성화', '집중도 측정을 시작합니다.', 'success', 2500);
+    } catch (e) {
+      showToast('카메라 오류', '카메라 접근 실패: ' + e.message, 'bad', 5000);
     }
   } else {
     clearInterval(frameInt);
     camStream.getTracks().forEach(t => t.stop());
     document.getElementById('webcam').srcObject = null;
-    document.getElementById('cam-status').className = 'status-dot off';
-    document.getElementById('btn-cam').textContent  = '카메라 켜기';
+    document.getElementById('cam-status').className = 'status-dot';
+    document.getElementById('btn-cam').textContent  = 'OFF';
+    document.getElementById('camOverlay').classList.remove('hidden');
     streaming = false;
   }
 }
 
-// ── 프레임 전송 ──────────────────────────────────────────────────────────
+/* ── 프레임 전송 ─────────────────────────────────────────── */
 function sendFrame() {
   const video  = document.getElementById('webcam');
   const canvas = document.getElementById('snap');
@@ -162,18 +333,59 @@ function sendFrame() {
   canvas.getContext('2d').drawImage(video, 0, 0, 320, 240);
   const image = canvas.toDataURL('image/jpeg', 0.7);
   const ts    = Math.floor((Date.now() - startTime) / 1000);
+
+  const mm = String(Math.floor(ts / 60)).padStart(2, '0');
+  const ss = String(ts % 60).padStart(2, '0');
+  document.getElementById('elapsed').textContent = `${mm}:${ss}`;
+
   socket.emit('frame', { view_id: VIEW_ID, timestamp: ts, image });
 }
 
-// ── 서버 응답 수신 ──────────────────────────────────────────────────────
+/* ── 알림 트리거 ─────────────────────────────────────────── */
+let lowStreak  = 0;
+let critStreak = 0;
+let lastWarn   = 0;
+let lastCrit   = 0;
+const WARN_COOLDOWN_MS = 30000;  // 일반 경고 30초
+const CRIT_COOLDOWN_MS = 12000;  // 크리티컬 경고 12초 (더 자주)
+
 socket.on('frame_result', ({ timestamp, score }) => {
   updateScoreUI(score);
   pushChart(timestamp, score);
+
+  // 크리티컬 (≤ 0.35) — 사운드 + 큰 팝업
+  if (score <= 0.35) {
+    critStreak++;
+    if (critStreak >= 2 && Date.now() - lastCrit > CRIT_COOLDOWN_MS) {
+      showCritical(`집중도가 ${Math.round(score*100)}% 입니다. 지금 바로 집중력을 회복해 주세요!`);
+      lastCrit = Date.now();
+    }
+  } else {
+    critStreak = 0;
+  }
+
+  // 일반 경고 (0.35~0.40)
+  if (score > 0.35 && score < 0.4) {
+    lowStreak++;
+    if (lowStreak >= 3 && Date.now() - lastWarn > WARN_COOLDOWN_MS) {
+      showToast(
+        '집중력 저하',
+        '집중력이 떨어지고 있어요. 잠시 자세를 바꾸거나 심호흡을 해보세요.',
+        'warn'
+      );
+      lastWarn = Date.now();
+    }
+  } else if (score >= 0.4) {
+    lowStreak = 0;
+  }
 });
 
-// ── 데이터 수집 ─────────────────────────────────────────────────────────
+/* ── 데이터 수집 ─────────────────────────────────────────── */
 function collectSample(label) {
-  if (!streaming) { alert('카메라를 먼저 켜주세요.'); return; }
+  if (!streaming) {
+    showToast('카메라', '먼저 카메라를 켜주세요.', 'warn', 2500);
+    return;
+  }
   const video  = document.getElementById('webcam');
   const canvas = document.getElementById('snap');
   canvas.width  = 320;
@@ -187,11 +399,9 @@ function collectSample(label) {
 
 socket.on('collect_result', ({ ok, reason }) => {
   const el = document.getElementById('collect-msg');
-  el.textContent = ok ? '✅ 저장되었습니다.' : '⚠️ 저장 실패: ' + reason;
-  setTimeout(() => { el.textContent = ''; }, 2000);
+  el.textContent = ok ? '// 저장됨 · '+ new Date().toLocaleTimeString() : '// 실패 · ' + reason;
 });
 
-// ── 페이지 이탈 시 정리 ─────────────────────────────────────────────────
 window.addEventListener('beforeunload', () => {
   if (camStream) camStream.getTracks().forEach(t => t.stop());
 });

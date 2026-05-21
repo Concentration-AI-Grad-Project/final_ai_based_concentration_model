@@ -20,7 +20,9 @@ from flask_socketio import SocketIO, emit
 from flask_login import (LoginManager, UserMixin,
                          login_user, login_required, logout_user, current_user)
 
-from concentration_model import analyze_frame, extract_features, reload_model, FEATURE_COLS
+from concentration_model import analyze_frame, extract_features, reload_model, FEATURE_COLS, get_model_status
+
+
 
 # ---------------------------------------------------------------------------
 # 앱 초기화
@@ -121,7 +123,7 @@ def register():
         if User.query.filter_by(username=username).first():
             flash("이미 존재하는 아이디입니다.")
             return render_template("register.html")
-    
+
         db.session.add(User(
             username=username,
             password=password,
@@ -143,11 +145,14 @@ def logout():
 # 메인 / 역할별 대시보드
 # ---------------------------------------------------------------------------
 
+
+
 @app.route("/")
 def index():
+
     if current_user.is_authenticated:
         return redirect(url_for("professor" if current_user.role == "professor" else "student"))
-    return redirect(url_for("login"))
+    return render_template("index.html")
 
 
 @app.route("/student")
@@ -347,43 +352,39 @@ def handle_frame(data):
         print(f"[frame] 처리 오류: {e}")
 
 
-@socketio.on("collect_sample")
-def handle_collect_sample(data):
+@socketio.on('collect_sample')
+def on_collect_sample(data, incremental_learner=None):
     """
-    실제 데이터 수집 모드: 브라우저에서 label 값을 함께 전송하면
-    dataset/random_dataset.csv 에 feature row 를 추가한다.
-    data: { image: dataURL, label: 0|1 }
+    학생/교수자가 'focused' / 'unfocused' 버튼을 누를 때 호출.
+    feature 추출 → CSV append → 50개 모이면 백그라운드 재학습.
     """
-    img_data = data.get("image", "")
-    label    = data.get("label")
-
-    if not img_data or label is None:
-        return
+    import base64, numpy as np, cv2
 
     try:
-        _, b64 = img_data.split(",", 1)
-        img    = Image.open(io.BytesIO(base64.b64decode(b64))).convert("RGB")
-        frame  = np.array(img)
-        feats  = extract_features(frame)
-        if feats is None:
-            emit("collect_result", {"ok": False, "reason": "no_face"})
+        # data['image'] = "data:image/jpeg;base64,..."
+        b64 = data['image'].split(',', 1)[-1]
+        img = cv2.imdecode(
+            np.frombuffer(base64.b64decode(b64), dtype=np.uint8),
+            cv2.IMREAD_COLOR,
+        )
+        if img is None:
+            emit('collect_result', {'ok': False, 'reason': 'decode failed'})
             return
 
+        feats = extract_features(img)
+        if feats is None:
+            emit('collect_result', {'ok': False, 'reason': 'face not detected'})
+            return
 
-        csv_path = os.path.join(DATASET_DIR, "collect_user_8.csv")
-        is_new   = not os.path.exists(csv_path)
-        
-        with open(csv_path, "a", newline="", encoding="utf-8") as f:
-            writer = csv_module.writer(f)
-            if is_new:
-                writer.writerow(FEATURE_COLS + ["label"])
-            writer.writerow([feats[c] for c in FEATURE_COLS] + [int(label)])
-
-        emit("collect_result", {"ok": True})
-
+        user = current_user.username if current_user.is_authenticated else 'anonymous'
+        result = incremental_learner.record_sample(
+            features=feats,
+            label=int(data['label']),
+            user=user,
+        )
+        emit('collect_result', {'ok': True, **result})
     except Exception as e:
-        print(f"[collect] 오류: {e}")
-        emit("collect_result", {"ok": False, "reason": str(e)})
+        emit('collect_result', {'ok': False, 'reason': str(e)})
 
 # ---------------------------------------------------------------------------
 # 진입점

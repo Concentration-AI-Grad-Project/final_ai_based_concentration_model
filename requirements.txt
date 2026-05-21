@@ -6,6 +6,7 @@ eventlet==0.36.1
 Pillow==10.3.0
 numpy==1.26.4
 opencv-python==4.9.0.80
-mediapipe==0.10.30
+mediapipe==0.10.14
+protobuf==4.25.3
 scikit-learn==1.5.0
 pandas==2.2.2

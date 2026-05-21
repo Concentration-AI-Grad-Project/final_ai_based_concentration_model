@@ -1,11 +1,15 @@
 {% extends "base.html" %}
-{% block title %}교수자 대시보드{% endblock %}
+{% block title %}대시보드 — Focus{% endblock %}
 {% block head %}
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 {% endblock %}
 {% block content %}
 <div class="page-header">
-  <h2>교수자 대시보드</h2>
+  <div>
+    <div class="eyebrow">// Dashboard</div>
+    <h2>교수자 대시보드</h2>
+    <p class="subtitle">강의별 학습자 집중도 통계를 확인하고 데이터를 내보낼 수 있습니다.</p>
+  </div>
   <a href="{{ url_for('upload') }}" class="btn-primary">+ 강의 업로드</a>
 </div>
 
@@ -16,7 +20,7 @@
     <div class="prof-card-header">
       <div>
         <h3>{{ lec.title }}</h3>
-        <span class="lecture-date">{{ lec.uploaded_at.strftime('%Y-%m-%d %H:%M') }}</span>
+        <div class="meta">{{ '#%02d' % loop.index }} · {{ lec.uploaded_at.strftime('%Y.%m.%d · %H:%M') }}</div>
       </div>
       <div class="card-actions">
         <button class="btn-outline" onclick="loadChart({{ lec.id }})">집중도 분석</button>
@@ -26,10 +30,10 @@
     </div>
 
     <div class="summary-row" id="summary-{{ lec.id }}" style="display:none">
-      <div class="stat-box"><span class="stat-label">평균 집중도</span><span class="stat-val" id="s-mean-{{ lec.id }}">-</span></div>
+      <div class="stat-box"><span class="stat-label">평균</span><span class="stat-val" id="s-mean-{{ lec.id }}">-</span></div>
       <div class="stat-box"><span class="stat-label">최저</span><span class="stat-val" id="s-min-{{ lec.id }}">-</span></div>
       <div class="stat-box"><span class="stat-label">최고</span><span class="stat-val" id="s-max-{{ lec.id }}">-</span></div>
-      <div class="stat-box"><span class="stat-label">시청자 수</span><span class="stat-val" id="s-viewers-{{ lec.id }}">-</span></div>
+      <div class="stat-box"><span class="stat-label">시청자</span><span class="stat-val" id="s-viewers-{{ lec.id }}">-</span></div>
     </div>
 
     <div class="chart-wrap" id="chart-wrap-{{ lec.id }}" style="display:none">
@@ -39,31 +43,30 @@
   {% endfor %}
 </div>
 {% else %}
-<div class="empty-state"><p>업로드된 강의가 없습니다.</p></div>
+<div class="empty-state">
+  <h3>강의가 없어요</h3>
+  <p>업로드된 강의가 없습니다.</p>
+</div>
 {% endif %}
 {% endblock %}
 
 {% block scripts %}
 <script>
 async function loadChart(id) {
-  // 요약 통계
   const sumRes  = await fetch(`/api/concentration/lecture/${id}/summary`);
   const summary = await sumRes.json();
-  document.getElementById(`summary-${id}`).style.display = 'flex';
+  document.getElementById(`summary-${id}`).style.display = 'grid';
   document.getElementById(`s-mean-${id}`).textContent    = (summary.mean * 100).toFixed(1) + '%';
   document.getElementById(`s-min-${id}`).textContent     = (summary.min  * 100).toFixed(1) + '%';
   document.getElementById(`s-max-${id}`).textContent     = (summary.max  * 100).toFixed(1) + '%';
   document.getElementById(`s-viewers-${id}`).textContent = summary.viewers + '명';
 
-  // 평균 집중도 시계열
   const avgRes = await fetch(`/api/concentration/lecture/${id}/average`);
   const points = await avgRes.json();
   if (!points.length) return;
 
   document.getElementById(`chart-wrap-${id}`).style.display = 'block';
   const ctx = document.getElementById(`chart-${id}`).getContext('2d');
-
-  // 기존 차트 파괴
   if (window[`_chart_${id}`]) window[`_chart_${id}`].destroy();
 
   window[`_chart_${id}`] = new Chart(ctx, {
@@ -73,20 +76,23 @@ async function loadChart(id) {
       datasets: [{
         label: '평균 집중도',
         data: points.map(p => (p.avg * 100).toFixed(1)),
-        borderColor: '#8bc34a',
-        backgroundColor: 'rgba(139,195,74,0.15)',
-        tension: 0.4,
-        fill: true,
-        pointRadius: 2,
+        borderColor: '#0A0A0A',
+        backgroundColor: 'rgba(255, 90, 31, 0.18)',
+        tension: 0.35, fill: true,
+        pointRadius: 0, pointHoverRadius: 4,
+        borderWidth: 1.8,
       }]
     },
     options: {
       scales: {
-        y: { min: 0, max: 100, ticks: { callback: v => v + '%' } },
-        x: { ticks: { maxTicksLimit: 15 } }
+        y: { min: 0, max: 100,
+             ticks: { callback: v => v + '%', color: '#6B6B6B' },
+             grid: { color: '#F0F0F0' } },
+        x: { ticks: { maxTicksLimit: 15, color: '#6B6B6B' },
+             grid: { display: false } }
       },
       plugins: { legend: { display: false } },
-      animation: { duration: 400 },
+      animation: { duration: 500 },
     }
   });
 }

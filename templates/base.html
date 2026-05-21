@@ -3,31 +3,59 @@
 <head>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>{% block title %}집중도 학습 시스템{% endblock %}</title>
+  <title>{% block title %}Focus — 집중도 학습 시스템{% endblock %}</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}"/>
   {% block head %}{% endblock %}
 </head>
-<body>
+<body class="{% block body_class %}{% endblock %}">
+
+  <!-- Top Navbar -->
   <nav class="navbar">
-    <a class="brand" href="{{ url_for('index') }}">📚 집중도 학습 시스템</a>
-    <div class="nav-links">
+    <a class="brand" href="{{ url_for('index') }}">
+      <span class="mark"></span>
+      Focus
+    </a>
+    <div class="nav-right">
       {% if current_user.is_authenticated %}
-        <span class="nav-user">{{ current_user.username }}
+        <span class="nav-user">
+          {{ current_user.username }}
           <span class="badge {{ current_user.role }}">{{ '교수자' if current_user.role == 'professor' else '학생' }}</span>
         </span>
-        {% if current_user.role == 'professor' %}
-          <a href="{{ url_for('professor') }}">대시보드</a>
-          <a href="{{ url_for('upload') }}">강의 업로드</a>
-        {% else %}
-          <a href="{{ url_for('student') }}">강의 목록</a>
-        {% endif %}
-        <a href="{{ url_for('logout') }}">로그아웃</a>
-      {% else %}
-        <a href="{{ url_for('login') }}">로그인</a>
-        <a href="{{ url_for('register') }}">회원가입</a>
       {% endif %}
+      <button class="menu-btn" id="menuOpen" type="button" aria-label="메뉴 열기">
+        메뉴
+        <span class="icon"><span></span><span></span></span>
+      </button>
     </div>
   </nav>
+
+  <!-- Side Menu -->
+  <div class="menu-overlay" id="menuOverlay"></div>
+  <aside class="side-menu" id="sideMenu" aria-hidden="true">
+    <div class="side-menu__head">
+      <span class="label">MENU / 메뉴</span>
+      <button class="side-menu__close" id="menuClose" aria-label="메뉴 닫기">✕</button>
+    </div>
+    <nav class="side-menu__nav">
+      {% if current_user.is_authenticated %}
+        {% if current_user.role == 'professor' %}
+          <a href="{{ url_for('professor') }}"><span>대시보드</span><span class="num">01</span></a>
+          <a href="{{ url_for('upload') }}"><span>강의 업로드</span><span class="num">02</span></a>
+        {% else %}
+          <a href="{{ url_for('student') }}"><span>강의 목록</span><span class="num">01</span></a>
+        {% endif %}
+        <a href="{{ url_for('logout') }}"><span>로그아웃</span><span class="num">03</span></a>
+      {% else %}
+        <a href="{{ url_for('index') }}"><span>홈</span><span class="num">01</span></a>
+        <a href="{{ url_for('login') }}"><span>로그인</span><span class="num">02</span></a>
+        <a href="{{ url_for('register') }}"><span>회원가입</span><span class="num">03</span></a>
+      {% endif %}
+    </nav>
+    <div class="side-menu__foot">
+      <span>FOCUS © 2026</span>
+      <span>Concentration Studio</span>
+    </div>
+  </aside>
 
   <div class="container">
     {% with messages = get_flashed_messages() %}
@@ -39,6 +67,39 @@
     {% endwith %}
     {% block content %}{% endblock %}
   </div>
+
+  <!-- Toast container -->
+  <div id="toast-container" class="toast-container"></div>
+
+  <script>
+    /* ── Side menu toggle ── */
+    (function(){
+      const overlay = document.getElementById('menuOverlay');
+      const menu    = document.getElementById('sideMenu');
+      const open    = document.getElementById('menuOpen');
+      const close   = document.getElementById('menuClose');
+      function setOpen(state){
+        menu.classList.toggle('open', state);
+        overlay.classList.toggle('open', state);
+        document.body.classList.toggle('no-scroll', state);
+        menu.setAttribute('aria-hidden', !state);
+      }
+      open && open.addEventListener('click', () => setOpen(true));
+      close && close.addEventListener('click', () => setOpen(false));
+      overlay && overlay.addEventListener('click', () => setOpen(false));
+      document.addEventListener('keydown', e => { if (e.key === 'Escape') setOpen(false); });
+    })();
+
+    /* ── Scroll reveal ── */
+    (function(){
+      const io = new IntersectionObserver((entries) => {
+        entries.forEach(e => {
+          if (e.isIntersecting) { e.target.classList.add('in-view'); io.unobserve(e.target); }
+        });
+      }, { threshold: 0.12, rootMargin: '0px 0px -60px 0px' });
+      document.querySelectorAll('.reveal, .hero').forEach(el => io.observe(el));
+    })();
+  </script>
 
   <script src="{{ url_for('static', filename='js/main.js') }}"></script>
   {% block scripts %}{% endblock %}

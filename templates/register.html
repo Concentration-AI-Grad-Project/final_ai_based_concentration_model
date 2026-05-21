@@ -1,20 +1,32 @@
 {% extends "base.html" %}
-{% block title %}회원가입{% endblock %}
+{% block title %}회원가입 — Focus{% endblock %}
 {% block content %}
-<div class="auth-box">
-  <h2>회원가입</h2>
-  <form method="post">
-    <label>아이디</label>
-    <input type="text" name="username" required autofocus/>
-    <label>비밀번호</label>
-    <input type="password" name="password" required/>
-    <label>역할</label>
-    <select name="role">
-      <option value="student">학생</option>
-      <option value="professor">교수자</option>
-    </select>
-    <button type="submit" class="btn-primary">가입하기</button>
-  </form>
-  <p class="auth-link">이미 계정이 있으신가요? <a href="{{ url_for('login') }}">로그인</a></p>
+<div class="auth-wrap">
+  <div class="auth-aside">
+    <div class="auth-aside__num">02 / Register</div>
+    <h2>학습을<br/>다시 정의하다.</h2>
+    <p class="quote">
+      "30초면 충분합니다. 학생 또는 교수자로 가입하고
+      집중도 기반 학습 분석을 지금 바로 시작해 보세요."
+    </p>
+  </div>
+
+  <div class="auth-box">
+    <h2>회원가입</h2>
+    <p class="auth-sub">간단한 정보로 계정을 만드세요.</p>
+    <form method="post">
+      <label>아이디</label>
+      <input type="text" name="username" placeholder="아이디" required autofocus/>
+      <label>비밀번호</label>
+      <input type="password" name="password" placeholder="비밀번호" required/>
+      <label>역할</label>
+      <select name="role">
+        <option value="student">학생</option>
+        <option value="professor">교수자</option>
+      </select>
+      <button type="submit" class="btn-primary">가입하기</button>
+    </form>
+    <p class="auth-link">이미 계정이 있으신가요? <a href="{{ url_for('login') }}">로그인</a></p>
+  </div>
 </div>
 {% endblock %}
