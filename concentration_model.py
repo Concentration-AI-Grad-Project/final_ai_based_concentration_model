@@ -285,6 +285,29 @@ def analyze_frame(frame: np.ndarray) -> float:
     return _smooth(round(score, 4))
 
 
+def get_prediction_confidence(frame: np.ndarray):
+    """
+    확신도와 예측 라벨을 반환 (점진적 학습용)
+
+    Returns:
+        (features, confidence, predicted_label) or (None, 0.0, 0)
+    """
+    feats = extract_features(frame)
+
+    if feats is None:
+        return None, 0.0, 0
+
+    x = np.array([[feats[c] for c in FEATURE_COLS]])
+
+    if _clf is not None:
+        proba = _clf.predict_proba(x)[0]
+        predicted_label = int(proba[1] >= 0.5)
+        confidence = float(max(proba))  # 최대 확률 = 확신도
+        return feats, confidence, predicted_label
+    else:
+        return None, 0.0, 0
+
+
 def _rule_based_fallback(feats: dict) -> float:
     """
     규칙기반

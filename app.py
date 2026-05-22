@@ -20,7 +20,8 @@ from flask_socketio import SocketIO, emit
 from flask_login import (LoginManager, UserMixin,
                          login_user, login_required, logout_user, current_user)
 
-from concentration_model import analyze_frame, extract_features, reload_model
+from concentration_model import analyze_frame, extract_features, reload_model, get_prediction_confidence
+from incremental_learner import get_learner
 
 
 
@@ -43,6 +44,12 @@ db        = SQLAlchemy(app)
 socketio  = SocketIO(app, cors_allowed_origins="*", async_mode="eventlet")
 login_mgr = LoginManager(app)
 login_mgr.login_view = "login"
+
+# 점진적 학습 시스템 초기화
+learner = get_learner(
+    confidence_threshold=0.90,  # 90% 이상만 자동 라벨링
+    retrain_interval=100         # 100개마다 재학습
+)
 
 # ---------------------------------------------------------------------------
 # DB 모델
@@ -285,6 +292,17 @@ def api_reload_model():
     reload_model()
     return jsonify({"ok": True})
 
+
+@app.route("/api/incremental/stats")
+@login_required
+def api_incremental_stats():
+    """점진적 학습 통계 조회"""
+    if current_user.role != "professor":
+        return jsonify({"ok": False, "error": "권한 없음"}), 403
+
+    stats = learner.get_stats()
+    return jsonify(stats)
+
 # ---------------------------------------------------------------------------
 # CSV 다운로드 (교수자용)
 # ---------------------------------------------------------------------------
@@ -334,6 +352,7 @@ def handle_frame(data):
         img    = Image.open(io.BytesIO(base64.b64decode(b64))).convert("RGB")
         frame  = np.array(img)
 
+        # 실시간 예측 (기존)
         score  = analyze_frame(frame)
 
         # DB 저장
@@ -347,6 +366,22 @@ def handle_frame(data):
             "timestamp": ts,
             "score":     float(score),
         })
+
+        # ── 점진적 학습: 확신도 체크 & 자동 라벨링 ──────────────────────
+        features, confidence, predicted_label = get_prediction_confidence(frame)
+
+        if features is not None:
+            user = current_user.username if current_user.is_authenticated else "anonymous"
+            result = learner.record_sample(
+                features=features,
+                confidence=confidence,
+                predicted_label=predicted_label,
+                user=user
+            )
+
+            # 저장 성공 시 로그 (선택적)
+            if result["saved"]:
+                print(f"[자동라벨] {user} - {predicted_label} (확신도: {confidence:.2%}) - 누적: {result['total_samples']}개")
 
     except Exception as e:
         print(f"[frame] 처리 오류: {e}")
