@@ -19,7 +19,7 @@ import random
 # ---------------------------------------------------------------------------
 BASE_DIR   = os.path.dirname(os.path.abspath(__file__))
 MODEL_PATH = os.path.join(BASE_DIR, "face_landmarker.task")
-SKL_MODEL  = os.path.join(BASE_DIR, "models", "4_users_clf.pkl")
+SKL_MODEL  = os.path.join(BASE_DIR, "models", "model.pkl")
 
 # ---------------------------------------------------------------------------
 # MediaPipe FaceLandmarker 초기화 (IMAGE 모드 — 프레임 단위 호출)

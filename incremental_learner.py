@@ -36,7 +36,7 @@ class IncrementalLearner:
             base_dir: str = ".",
             confidence_threshold: float = 0.90,
             retrain_interval: int = 100,
-            model_path: str = "models/4_users_clf.pkl"
+            model_path: str = "models/model.pkl"
     ):
         self.base_dir = base_dir
         self.confidence_threshold = confidence_threshold

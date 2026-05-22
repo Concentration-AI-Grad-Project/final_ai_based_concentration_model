@@ -3,7 +3,7 @@ train_model.py
 --------------
 1) dataset/collect_user_*.csv 파일들을 자동으로 합침
 2) RandomForestClassifier 학습 + 평가 지표 출력
-3) models/4_users_clf.pkl 저장
+3) models/model.pkl 저장
 
 실행:
     python train_model.py                       # collect_user_*.csv 모두 합치기
@@ -29,7 +29,7 @@ BASE_DIR    = os.path.dirname(os.path.abspath(__file__))
 DATASET_DIR = os.path.join(BASE_DIR, "dataset")
 MODEL_DIR   = os.path.join(BASE_DIR, "models")
 CSV_PATH    = os.path.join(DATASET_DIR, "concentration_dataset.csv")
-PKL_PATH    = os.path.join(MODEL_DIR,   "4_users_clf.pkl")
+PKL_PATH    = os.path.join(MODEL_DIR,   "model.pkl")
 
 FEATURE_COLS = [
     "left_ear", "right_ear",
@@ -247,6 +247,13 @@ def train(csv_path: str = None, use_multi_user: bool = True):
         X, y, test_size=0.2, random_state=42, stratify=y
     )
     print(f"[train] 학습: {len(X_train)} (80%)  |  테스트: {len(X_test)} (20%)")
+
+    # 테스트셋 저장 (모델 비교용)
+    TEST_CSV = os.path.join(DATASET_DIR, "test_set.csv")
+    test_df = pd.DataFrame(X_test, columns=FEATURE_COLS)
+    test_df["label"] = y_test
+    test_df.to_csv(TEST_CSV, index=False, encoding='utf-8')
+    print(f"[train] 테스트셋 저장: {TEST_CSV}")
 
     # ── Pipeline: StandardScaler + RandomForest ───────────────────────────
     pipeline = Pipeline([
