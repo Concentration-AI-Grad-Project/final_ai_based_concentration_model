@@ -156,8 +156,33 @@ class IncrementalLearner:
             print(f"[재학습] 시작 - 누적 샘플: {self.sample_count}개")
             print(f"{'=' * 60}")
 
-            # 데이터 로드
-            df = pd.read_csv(self.auto_csv)
+            # 1. 초기 학습 데이터 로드
+            initial_csv = os.path.join(self.base_dir, "dataset", "merged_initial_data.csv")
+
+            if os.path.exists(initial_csv):
+                df_initial = pd.read_csv(initial_csv)
+                print(f"[재학습] 초기 데이터: {len(df_initial)}개")
+            else:
+                # merged_initial_data.csv가 없으면 collect_user_*.csv 병합
+                print(f"[재학습] 초기 데이터 병합 중...")
+                try:
+                    from train_model import merge_user_csvs
+                    df_initial = merge_user_csvs(os.path.join(self.base_dir, "dataset"))
+
+                    if df_initial is not None:
+                        # 저장 (다음번엔 빠르게 로드)
+                        df_initial.to_csv(initial_csv, index=False, encoding='utf-8')
+                        print(f"[재학습] 초기 데이터 병합 완료: {len(df_initial)}개")
+                    else:
+                        df_initial = pd.DataFrame()
+                        print(f"[재학습] ⚠️ 초기 데이터 없음 - 자동 라벨만으로 학습")
+                except Exception as e:
+                    print(f"[재학습] ⚠️ 초기 데이터 로드 실패: {e}")
+                    df_initial = pd.DataFrame()
+
+            # 2. 자동 라벨링 데이터 로드
+            df_auto = pd.read_csv(self.auto_csv)
+            print(f"[재학습] 자동 라벨 데이터: {len(df_auto)}개")
 
             feature_cols = [
                 "left_ear", "right_ear",
@@ -165,6 +190,19 @@ class IncrementalLearner:
                 "r_pupil_dist", "r_pupil_dx", "r_pupil_dy",
                 "pitch", "yaw", "roll"
             ]
+
+            if len(df_initial) > 0:
+                # 필요한 컬럼만 선택
+                cols_needed = feature_cols + ["label"]
+                df_initial = df_initial[cols_needed]
+                df_auto = df_auto[cols_needed]
+
+                # 합치기!
+                df = pd.concat([df_initial, df_auto], ignore_index=True)
+                print(f"[재학습] 💡 누적 학습: 초기 {len(df_initial)} + 자동 {len(df_auto)} = 총 {len(df)}개")
+            else:
+                df = df_auto
+                print(f"[재학습] ⚠️ 자동 라벨만 사용: {len(df_auto)}개")
 
             X = df[feature_cols].values
             y = df["label"].values
